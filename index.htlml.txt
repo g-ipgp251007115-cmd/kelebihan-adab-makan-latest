@@ -1,0 +1,1687 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Camera,
+  CameraOff,
+  Volume2,
+  VolumeX,
+  RotateCcw,
+  HelpCircle,
+  CheckCircle2,
+  XCircle,
+  Sparkles,
+  Trophy,
+  ArrowLeft,
+  ArrowRight,
+  Compass,
+  Play,
+  ShieldCheck,
+  AlertCircle
+} from 'lucide-react';
+
+// ============================================================================
+// 1. DATA SOALAN (8 SOALAN PENDIDIKAN ISLAM - KESAN ADAB MAKAN & MINUM)
+// ============================================================================
+const QUESTIONS = [
+  {
+    id: 1,
+    characterName: 'Ali',
+    gender: 'boy',
+    question: 'Ali sentiasa memastikan makanannya bersih. Apakah kesannya?',
+    leftText: 'Menjaga kebersihan makanan.',
+    rightText: 'Makanan menjadi kotor.',
+    correctSide: 'LEFT',
+    explanation: 'Makanan yang bersih menjamin keselamatan dan mengelakkan kuman masuk ke dalam badan.'
+  },
+  {
+    id: 2,
+    characterName: 'Aisyah',
+    gender: 'girl',
+    question: 'Aisyah mengamalkan adab makan dan minum. Apakah kesan terhadap tubuh badannya?',
+    leftText: 'Mudah mendapat penyakit.',
+    rightText: 'Menjaga kesihatan anggota badan.',
+    correctSide: 'RIGHT',
+    explanation: 'Mengamalkan adab makan seperti membasuh tangan dan makan secara sederhana menjaga kesihatan tubuh.'
+  },
+  {
+    id: 3,
+    characterName: 'Ahmad',
+    gender: 'boy',
+    question: 'Ahmad mengucapkan Alhamdulillah selepas makan. Apakah nilai yang diamalkan?',
+    leftText: 'Sentiasa bersyukur kepada Allah.',
+    rightText: 'Tidak menghargai nikmat Allah.',
+    correctSide: 'LEFT',
+    explanation: 'Mengucapkan Alhamdulillah tanda kita bersyukur atas rezeki yang dikurniakan oleh Allah SWT.'
+  },
+  {
+    id: 4,
+    characterName: 'Fatimah',
+    gender: 'girl',
+    question: 'Fatimah mengambil makanan mengikut keperluannya. Apakah kesannya?',
+    leftText: 'Makanan banyak dibuang.',
+    rightText: 'Dapat mengelakkan pembaziran.',
+    correctSide: 'RIGHT',
+    explanation: 'Mengambil makanan sekadar yang perlu mengelakkan pembaziran yang ditegah dalam Islam.'
+  },
+  {
+    id: 5,
+    characterName: 'Hana',
+    gender: 'girl',
+    question: 'Hana makan dengan sopan bersama keluarganya. Apakah kesannya?',
+    leftText: 'Menjaga hubungan baik antara manusia.',
+    rightText: 'Menyebabkan pergaduhan.',
+    correctSide: 'LEFT',
+    explanation: 'Adab sopan ketika makan bersama mewujudkan suasana harmoni dan mengeratkan silaturahim.'
+  },
+  {
+    id: 6,
+    characterName: 'Umar',
+    gender: 'boy',
+    question: 'Umar menjaga tingkah lakunya semasa makan di majlis. Apakah kesannya?',
+    leftText: 'Menjatuhkan maruah diri.',
+    rightText: 'Menjaga maruah diri dan orang sekeliling.',
+    correctSide: 'RIGHT',
+    explanation: 'Tingkah laku yang sopan di majlis mencerminkan akhlak mulia dan menjaga maruah diri.'
+  },
+  {
+    id: 7,
+    characterName: 'Sarah',
+    gender: 'girl',
+    question: 'Sarah makan dengan tertib dan tidak mengganggu orang lain. Apakah kesannya?',
+    leftText: 'Tidak menimbulkan rasa benci daripada orang lain.',
+    rightText: 'Menyebabkan orang lain berasa marah.',
+    correctSide: 'LEFT',
+    explanation: 'Makan dengan tertib membuatkan orang di sekeliling berasa selesa dan senang hati.'
+  },
+  {
+    id: 8,
+    characterName: 'Zara',
+    gender: 'girl',
+    question: 'Zara sentiasa mengamalkan adab makan dan minum yang diajar oleh Islam. Apakah kesan paling utama?',
+    leftText: 'Mendapat pujian semata-mata.',
+    rightText: 'Mendapat keredaan daripada Allah.',
+    correctSide: 'RIGHT',
+    explanation: 'Setiap amalan sunnah dan adab yang dilakukan dengan ikhlas akan mendapat pahala dan keredaan Allah SWT.'
+  }
+];
+
+// ============================================================================
+// 2. WEB AUDIO SYNTHESIZER (MUZIK LATAR CERIA & KESAN BUNYI)
+// ============================================================================
+class SoundEngine {
+  constructor() {
+    this.ctx = null;
+    this.enabled = true;
+    this.bgmInterval = null;
+    this.noteIndex = 0;
+    // Melodi ceria kanak-kanak (Pentatonic Major C)
+    this.melody = [
+      523.25, 659.25, 783.99, 659.25, // C5 E5 G5 E5
+      587.33, 698.46, 880.00, 698.46, // D5 F5 A5 F5
+      523.25, 659.25, 783.99, 1046.50, // C5 E5 G5 C6
+      783.99, 659.25, 587.33, 523.25  // G5 E5 D5 C5
+    ];
+  }
+
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        this.ctx = new AudioCtx();
+      }
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  }
+
+  setEnabled(val) {
+    this.enabled = val;
+    if (!val) {
+      this.stopBGM();
+    } else {
+      this.startBGM();
+    }
+  }
+
+  playTone(freq, duration = 0.2, type = 'sine', volume = 0.12, delay = 0) {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime + delay;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.exponentialRampToValueAtTime(volume, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+  }
+
+  startBGM() {
+    if (!this.enabled || this.bgmInterval) return;
+    this.init();
+    this.bgmInterval = setInterval(() => {
+      if (!this.enabled) return;
+      const freq = this.melody[this.noteIndex % this.melody.length];
+      this.playTone(freq, 0.28, 'triangle', 0.045, 0);
+      this.noteIndex++;
+    }, 450);
+  }
+
+  stopBGM() {
+    if (this.bgmInterval) {
+      clearInterval(this.bgmInterval);
+      this.bgmInterval = null;
+    }
+  }
+
+  playTick(progress) {
+    // Nada meningkat mengikut peratus tahanan kepala
+    const pitch = 440 + progress * 440;
+    this.playTone(pitch, 0.08, 'sine', 0.07, 0);
+  }
+
+  playCorrect() {
+    // Bunyi kejayaan ceria (Arpeggio C Major naik)
+    this.playTone(523.25, 0.15, 'triangle', 0.18, 0);
+    this.playTone(659.25, 0.15, 'triangle', 0.18, 0.1);
+    this.playTone(783.99, 0.15, 'triangle', 0.18, 0.2);
+    this.playTone(1046.50, 0.45, 'triangle', 0.22, 0.3);
+  }
+
+  playIncorrect() {
+    // Bunyi lembut "Cuba Lagi" (tidak menakutkan kanak-kanak)
+    this.playTone(392.00, 0.2, 'sine', 0.15, 0);
+    this.playTone(329.63, 0.35, 'sine', 0.15, 0.18);
+  }
+
+  playVictory() {
+    // Fanfare tamat misi
+    const notes = [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50];
+    const times = [0, 0.12, 0.24, 0.36, 0.55, 0.7];
+    notes.forEach((n, idx) => {
+      this.playTone(n, idx === notes.length - 1 ? 0.6 : 0.18, 'triangle', 0.2, times[idx]);
+    });
+  }
+}
+
+const soundEngine = new SoundEngine();
+
+// ============================================================================
+// 3. KOMPONEN WATAK KARTUN MUSLIM & MUSLIMAH (CUSTOM SVG ANIMATED)
+// ============================================================================
+const CartoonCharacter = ({
+  gender = 'boy',
+  name = '',
+  tiltAngle = 0,
+  mood = 'happy', // 'happy' | 'excited' | 'encourage' | 'celebrate'
+  size = 150
+}) => {
+  // Hadkan sudut kecondongan visual watak supaya comel
+  const clampedTilt = Math.max(-28, Math.min(28, tiltAngle));
+
+  return (
+    <div
+      className="relative flex flex-col items-center select-none transition-transform duration-150 ease-out"
+      style={{
+        transform: `rotate(${clampedTilt * 0.65}deg)`
+      }}
+    >
+      {/* Aura Bintang bila gembira/berjaya */}
+      {(mood === 'excited' || mood === 'celebrate') && (
+        <div className="absolute -top-4 inset-x-0 flex justify-around pointer-events-none animate-bounce">
+          <span className="text-yellow-400 text-2xl">⭐</span>
+          <span className="text-pink-400 text-xl">✨</span>
+          <span className="text-yellow-400 text-2xl">⭐</span>
+        </div>
+      )}
+
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 200 210"
+        className="drop-shadow-md overflow-visible"
+      >
+        {/* Bayang-bayang bawah */}
+        <ellipse cx="100" cy="198" rx="55" ry="10" fill="rgba(0,0,0,0.12)" />
+
+        {gender === 'boy' ? (
+          /* ================= WATAK LELAKI MUSLIM (BAJU MELAYU & KOPIAH) ================= */
+          <g className="animate-[float_3s_ease-in-out_infinite]">
+            {/* Badan / Baju Melayu Mint Green */}
+            <path
+              d="M55 130 C55 112, 145 112, 145 130 L152 185 C152 192, 48 192, 48 185 Z"
+              fill="#34D399"
+              stroke="#059669"
+              strokeWidth="3"
+            />
+            {/* Kolar Cekak Musang & Butang */}
+            <path d="M85 116 L100 132 L115 116" fill="#A7F3D0" stroke="#059669" strokeWidth="2.5" />
+            <circle cx="100" cy="140" r="3" fill="#FBBF24" />
+            <circle cx="100" cy="152" r="3" fill="#FBBF24" />
+            <circle cx="100" cy="164" r="3" fill="#FBBF24" />
+
+            {/* Tangan Kiri & Kanan */}
+            {mood === 'celebrate' || mood === 'excited' ? (
+              <>
+                <path d="M56 132 Q30 105 38 85" stroke="#34D399" strokeWidth="16" strokeLinecap="round" fill="none" />
+                <circle cx="38" cy="83" r="9" fill="#FDE68A" stroke="#D97706" strokeWidth="2" />
+                <path d="M144 132 Q170 105 162 85" stroke="#34D399" strokeWidth="16" strokeLinecap="round" fill="none" />
+                <circle cx="162" cy="83" r="9" fill="#FDE68A" stroke="#D97706" strokeWidth="2" />
+              </>
+            ) : (
+              <>
+                <path d="M56 134 Q42 155 52 172" stroke="#34D399" strokeWidth="15" strokeLinecap="round" fill="none" />
+                <circle cx="52" cy="173" r="8.5" fill="#FDE68A" stroke="#D97706" strokeWidth="2" />
+                <path d="M144 134 Q158 155 148 172" stroke="#34D399" strokeWidth="15" strokeLinecap="round" fill="none" />
+                <circle cx="148" cy="173" r="8.5" fill="#FDE68A" stroke="#D97706" strokeWidth="2" />
+              </>
+            )}
+
+            {/* Telinga */}
+            <circle cx="54" cy="78" r="10" fill="#FDE68A" stroke="#D97706" strokeWidth="2.5" />
+            <circle cx="146" cy="78" r="10" fill="#FDE68A" stroke="#D97706" strokeWidth="2.5" />
+
+            {/* Kepala / Muka */}
+            <circle cx="100" cy="78" r="44" fill="#FEF3C7" stroke="#D97706" strokeWidth="3" />
+
+            {/* Kopiah Putih dengan Jalur Emas */}
+            <path
+              d="M57 62 C57 26, 143 26, 143 62 Z"
+              fill="#FFFFFF"
+              stroke="#059669"
+              strokeWidth="3"
+            />
+            <rect x="58" y="54" width="84" height="7" rx="3" fill="#FBBF24" />
+
+            {/* Kening */}
+            <path d="M74 66 Q82 61 90 66" stroke="#78350F" strokeWidth="3" strokeLinecap="round" fill="none" />
+            <path d="M110 66 Q118 61 126 66" stroke="#78350F" strokeWidth="3" strokeLinecap="round" fill="none" />
+
+            {/* Mata Comel */}
+            {mood === 'excited' || mood === 'celebrate' ? (
+              <>
+                <path d="M75 78 Q82 70 89 78" stroke="#1F2937" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+                <path d="M111 78 Q118 70 125 78" stroke="#1F2937" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+              </>
+            ) : (
+              <>
+                <circle cx="82" cy="78" r="5.5" fill="#1F2937" />
+                <circle cx="84" cy="76" r="2" fill="#FFFFFF" />
+                <circle cx="118" cy="78" r="5.5" fill="#1F2937" />
+                <circle cx="120" cy="76" r="2" fill="#FFFFFF" />
+              </>
+            )}
+
+            {/* Pipi Merah Jambu */}
+            <ellipse cx="70" cy="90" rx="7" ry="4.5" fill="#FDA4AF" opacity="0.75" />
+            <ellipse cx="130" cy="90" rx="7" ry="4.5" fill="#FDA4AF" opacity="0.75" />
+
+            {/* Mulut / Senyuman */}
+            {mood === 'encourage' ? (
+              <path d="M90 98 Q100 94 110 98" stroke="#991B1B" strokeWidth="3" strokeLinecap="round" fill="none" />
+            ) : mood === 'excited' || mood === 'celebrate' ? (
+              <path d="M85 93 Q100 112 115 93 Z" fill="#F43F5E" stroke="#991B1B" strokeWidth="2.5" />
+            ) : (
+              <path d="M87 94 Q100 106 113 94" stroke="#991B1B" strokeWidth="3.2" strokeLinecap="round" fill="none" />
+            )}
+          </g>
+        ) : (
+          /* ================= WATAK PEREMPUAN MUSLIMAH (TUDUNG & BAJU KURUNG) ================= */
+          <g className="animate-[float_3s_ease-in-out_infinite]">
+            {/* Badan Baju Kurung Pink Lembut */}
+            <path
+              d="M52 132 C52 114, 148 114, 148 132 L156 188 C156 194, 44 194, 44 188 Z"
+              fill="#F472B6"
+              stroke="#DB2777"
+              strokeWidth="3"
+            />
+
+            {/* Tangan */}
+            {mood === 'celebrate' || mood === 'excited' ? (
+              <>
+                <path d="M54 134 Q28 106 36 86" stroke="#F472B6" strokeWidth="15" strokeLinecap="round" fill="none" />
+                <circle cx="36" cy="84" r="8.5" fill="#FDE68A" stroke="#D97706" strokeWidth="2" />
+                <path d="M146 134 Q172 106 164 86" stroke="#F472B6" strokeWidth="15" strokeLinecap="round" fill="none" />
+                <circle cx="164" cy="84" r="8.5" fill="#FDE68A" stroke="#D97706" strokeWidth="2" />
+              </>
+            ) : (
+              <>
+                <path d="M54 136 Q42 156 52 172" stroke="#F472B6" strokeWidth="14" strokeLinecap="round" fill="none" />
+                <circle cx="52" cy="173" r="8" fill="#FDE68A" stroke="#D97706" strokeWidth="2" />
+                <path d="M146 136 Q158 156 148 172" stroke="#F472B6" strokeWidth="14" strokeLinecap="round" fill="none" />
+                <circle cx="148" cy="173" r="8" fill="#FDE68A" stroke="#D97706" strokeWidth="2" />
+              </>
+            )}
+
+            {/* Tudung Labuh Comel (Pastel Yellow / Cream) */}
+            <path
+              d="M46 82 C46 28, 154 28, 154 82 C158 122, 142 148, 100 150 C58 148, 42 122, 46 82 Z"
+              fill="#FDE047"
+              stroke="#CA8A04"
+              strokeWidth="3"
+            />
+
+            {/* Bingkai Muka dalam Tudung */}
+            <circle cx="100" cy="80" r="39" fill="#FEF3C7" stroke="#D97706" strokeWidth="2.5" />
+
+            {/* Pin Tudung & Reben Kecil */}
+            <circle cx="100" cy="123" r="5" fill="#F43F5E" />
+            <circle cx="136" cy="54" r="7" fill="#FB7185" />
+            <circle cx="136" cy="54" r="3" fill="#FEF08A" />
+
+            {/* Kening */}
+            <path d="M76 68 Q83 63 90 68" stroke="#78350F" strokeWidth="2.8" strokeLinecap="round" fill="none" />
+            <path d="M110 68 Q117 63 124 68" stroke="#78350F" strokeWidth="2.8" strokeLinecap="round" fill="none" />
+
+            {/* Mata & Bulu Mata */}
+            {mood === 'excited' || mood === 'celebrate' ? (
+              <>
+                <path d="M76 79 Q83 71 90 79" stroke="#1F2937" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+                <path d="M110 79 Q117 71 124 79" stroke="#1F2937" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+              </>
+            ) : (
+              <>
+                <circle cx="83" cy="79" r="5.2" fill="#1F2937" />
+                <circle cx="85" cy="77" r="1.9" fill="#FFFFFF" />
+                <line x1="77" y1="76" x2="74" y2="74" stroke="#1F2937" strokeWidth="2" />
+                <circle cx="117" cy="79" r="5.2" fill="#1F2937" />
+                <circle cx="119" cy="77" r="1.9" fill="#FFFFFF" />
+                <line x1="123" y1="76" x2="126" y2="74" stroke="#1F2937" strokeWidth="2" />
+              </>
+            )}
+
+            {/* Pipi Merah Jambu */}
+            <ellipse cx="72" cy="90" rx="6.5" ry="4" fill="#FDA4AF" opacity="0.8" />
+            <ellipse cx="128" cy="90" rx="6.5" ry="4" fill="#FDA4AF" opacity="0.8" />
+
+            {/* Mulut */}
+            {mood === 'encourage' ? (
+              <path d="M91 98 Q100 94 109 98" stroke="#991B1B" strokeWidth="3" strokeLinecap="round" fill="none" />
+            ) : mood === 'excited' || mood === 'celebrate' ? (
+              <path d="M87 93 Q100 110 113 93 Z" fill="#F43F5E" stroke="#991B1B" strokeWidth="2.5" />
+            ) : (
+              <path d="M89 94 Q100 105 111 94" stroke="#991B1B" strokeWidth="3" strokeLinecap="round" fill="none" />
+            )}
+          </g>
+        )}
+      </svg>
+
+      {name && (
+        <span className="mt-1 px-4 py-1 rounded-full bg-white/90 border-2 border-amber-300 text-amber-900 font-extrabold text-sm shadow-sm">
+          {name}
+        </span>
+      )}
+    </div>
+  );
+};
+
+// ============================================================================
+// 4. KOMPONEN CONFETTI & BINTANG ANIMASI
+// ============================================================================
+const ConfettiCelebration = ({ active }) => {
+  if (!active) return null;
+  const colors = ['#F43F5E', '#FBBF24', '#34D399', '#38BDF8', '#A78BFA', '#FB923C'];
+  const items = Array.from({ length: 36 });
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+      {items.map((_, idx) => {
+        const left = `${(idx * 2.8) % 100}%`;
+        const delay = `${(idx % 8) * 0.12}s`;
+        const duration = `${1.8 + (idx % 5) * 0.35}s`;
+        const color = colors[idx % colors.length];
+        const isStar = idx % 3 === 0;
+
+        return (
+          <div
+            key={idx}
+            className="absolute -top-8 animate-[confettiFall_linear_forwards]"
+            style={{
+              left,
+              animationDelay: delay,
+              animationDuration: duration
+            }}
+          >
+            {isStar ? (
+              <span className="text-2xl">⭐</span>
+            ) : (
+              <div
+                className="w-3.5 h-3.5 rounded-sm"
+                style={{
+                  backgroundColor: color,
+                  transform: `rotate(${idx * 37}deg)`
+                }}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ============================================================================
+// 5. KOMPONEN PENUNJUK KEMAJUAN BULAT (CIRCULAR HOLD PROGRESS)
+// ============================================================================
+const CircularProgressRing = ({ progress = 0, size = 76, strokeWidth = 8, color = '#10B981' }) => {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - Math.min(1, Math.max(0, progress)) * circumference;
+
+  return (
+    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90 drop-shadow">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="rgba(255,255,255,0.9)"
+          stroke="#E5E7EB"
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="transparent"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          className="transition-all duration-75"
+        />
+      </svg>
+      <span className="absolute text-sm font-black text-slate-800">
+        {Math.round(progress * 100)}%
+      </span>
+    </div>
+  );
+};
+
+// ============================================================================
+// 6. APLIKASI UTAMA PERMAINAN: MISI ADAB MAKAN & MINUM
+// ============================================================================
+export default function App() {
+  // Skrin permainan: 'WELCOME' | 'SETUP' | 'PLAYING' | 'CELEBRATION'
+  const [screen, setScreen] = useState('WELCOME');
+  const [showHowToModal, setShowHowToModal] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
+
+  // State Kamera & MediaPipe Face Landmarker
+  const [cameraStatus, setCameraStatus] = useState('IDLE'); // 'IDLE' | 'REQUESTING' | 'LOADING_MODEL' | 'READY' | 'ERROR' | 'FALLBACK'
+  const [cameraErrorMsg, setCameraErrorMsg] = useState('');
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [rawRollAngle, setRawRollAngle] = useState(0); // Sudut mentah (darjah)
+  const [calibrationOffset, setCalibrationOffset] = useState(0); // Sudut neutral pengguna
+  const [calibratedBanner, setCalibratedBanner] = useState(false);
+
+  // State Permainan Utama
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [score, setScore] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [questionSolved, setQuestionSolved] = useState(false);
+
+  // State Pemilihan Jawapan (Head Tilt / Keyboard / Touch)
+  const [activeTiltSide, setActiveTiltSide] = useState(null); // 'LEFT' | 'RIGHT' | null
+  const [holdProgress, setHoldProgress] = useState(0); // 0 -> 1 (0.8 saat)
+  const [cooldownActive, setCooldownActive] = useState(false);
+  const [feedback, setFeedback] = useState(null); // { type: 'CORRECT' | 'INCORRECT', title, message, explanation }
+
+  // Refs untuk aliran video, canvas & loop pengesanan masa nyata
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const faceLandmarkerRef = useRef(null);
+  const animFrameRef = useRef(null);
+  const lastVideoTimeRef = useRef(-1);
+
+  // Refs untuk nilai terkini dalam requestAnimationFrame tanpa stale closure
+  const calibrationOffsetRef = useRef(0);
+  const screenRef = useRef('WELCOME');
+  const feedbackRef = useRef(null);
+  const cooldownRef = useRef(false);
+  const holdStartTimeRef = useRef(null);
+  const holdingSideRef = useRef(null);
+  const lastTickStepRef = useRef(0);
+  const keyHoldSideRef = useRef(null);
+
+  useEffect(() => {
+    calibrationOffsetRef.current = calibrationOffset;
+  }, [calibrationOffset]);
+
+  useEffect(() => {
+    screenRef.current = screen;
+  }, [screen]);
+
+  useEffect(() => {
+    feedbackRef.current = feedback;
+  }, [feedback]);
+
+  useEffect(() => {
+    cooldownRef.current = cooldownActive;
+  }, [cooldownActive]);
+
+  // Kira sudut sebenar selepas kalibrasi (Negatif = KIRI pada skrin, Positif = KANAN pada skrin)
+  const effectiveAngle = rawRollAngle - calibrationOffset;
+
+  // Toggle Bunyi
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    soundEngine.setEnabled(next);
+  };
+
+  // ==========================================================================
+  // INISIALISASI KAMERA & MEDIAPIPE FACE LANDMARKER (100% LOKAL DI PELAYAR)
+  // ==========================================================================
+  const startCameraAndFaceTracking = async () => {
+    setCameraStatus('REQUESTING');
+    setCameraErrorMsg('');
+
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Pelayar ini tidak menyokong akses kamera.');
+      }
+
+      // Hentikan strim lama jika ada
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'user',
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        },
+        audio: false
+      });
+
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      setCameraStatus('LOADING_MODEL');
+
+      // Muatkan MediaPipe Tasks Vision melalui skrip modul global supaya serasi dengan semua bundler
+      if (!faceLandmarkerRef.current) {
+        if (!window.__mediapipeVision) {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.textContent = `
+              import * as vision from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs';
+              window.__mediapipeVision = vision;
+              window.dispatchEvent(new Event('mediapipe-vision-loaded'));
+            `;
+            const onLoaded = () => {
+              window.removeEventListener('mediapipe-vision-loaded', onLoaded);
+              resolve();
+            };
+            window.addEventListener('mediapipe-vision-loaded', onLoaded);
+            script.onerror = () => reject(new Error('Gagal memuatkan pustaka pengesan wajah.'));
+            document.head.appendChild(script);
+            setTimeout(() => {
+              if (!window.__mediapipeVision) reject(new Error('Masa tamat memuatkan model wajah.'));
+            }, 12000);
+          });
+        }
+
+        const { FaceLandmarker, FilesetResolver } = window.__mediapipeVision;
+
+        const filesetResolver = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+        );
+
+        // Elakkan log INFO dalaman TensorFlow Lite (XNNPACK) daripada dicetak sebagai console.error
+        const originalConsoleError = console.error;
+        console.error = (...args) => {
+          if (typeof args[0] === 'string' && args[0].includes('TensorFlow Lite XNNPACK delegate')) {
+            return;
+          }
+          originalConsoleError.apply(console, args);
+        };
+
+        try {
+          faceLandmarkerRef.current = await FaceLandmarker.createFromOptions(filesetResolver, {
+            baseOptions: {
+              modelAssetPath:
+                'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+              delegate: 'CPU'
+            },
+            outputFaceBlendshapes: false,
+            runningMode: 'VIDEO',
+            numFaces: 1
+          });
+        } finally {
+          console.error = originalConsoleError;
+        }
+      }
+
+      setCameraStatus('READY');
+      startDetectionLoop();
+    } catch (err) {
+      let msg = 'Kamera tidak dapat diakses. Jangan risau, kamu masih boleh bermain menggunakan butang sentuh atau kekunci anak panah!';
+      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+        msg = 'Kebenaran kamera ditolak atau disekat oleh tetingkap pratonton. Klik "MULA (MOD SENTUH / KEKUNCI)" di bawah untuk bermain!';
+      } else if (err?.name === 'NotFoundError') {
+        msg = 'Tiada kamera dikesan pada peranti ini. Gunakan Mod Sentuh / Kekunci untuk bermain!';
+      }
+      setCameraErrorMsg(msg);
+      setCameraStatus('ERROR');
+    }
+  };
+
+  // Sambungkan semula video element apabila bertukar antara skrin SETUP dan PLAYING
+  useEffect(() => {
+    if (videoRef.current && streamRef.current && videoRef.current.srcObject !== streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [screen, cameraStatus]);
+
+  // Bersihkan kamera & loop apabila komponen ditutup
+  useEffect(() => {
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      soundEngine.stopBGM();
+    };
+  }, []);
+
+  // ==========================================================================
+  // PENGESANAN SUDUT SENGETAN KEPALA & LOGIK TAHAN 0.8 SAAT
+  // ==========================================================================
+  const TILT_THRESHOLD_DEG = 15; // Ambang 15 darjah
+  const HOLD_DURATION_MS = 800;  // Tahan selama 0.8 saat
+
+  const handleAnswerSubmission = useCallback(
+    (selectedSide) => {
+      if (feedbackRef.current || cooldownRef.current) return;
+
+      const currentQ = QUESTIONS[currentIndex];
+      if (!currentQ) return;
+
+      // Reset pemegang masa
+      holdStartTimeRef.current = null;
+      holdingSideRef.current = null;
+      setHoldProgress(0);
+      setActiveTiltSide(null);
+
+      // Aktifkan tempoh bertenang (cooldown) 1.2 saat
+      setCooldownActive(true);
+      setTimeout(() => {
+        setCooldownActive(false);
+      }, 1200);
+
+      if (selectedSide === currentQ.correctSide) {
+        soundEngine.playCorrect();
+        if (!questionSolved) {
+          setScore((prev) => prev + 10);
+          setCorrectCount((prev) => prev + 1);
+          setQuestionSolved(true);
+        }
+        setFeedback({
+          type: 'CORRECT',
+          title: 'HEBAT! JAWAPAN BETUL! 🌟',
+          explanation: currentQ.explanation
+        });
+      } else {
+        soundEngine.playIncorrect();
+        setFeedback({
+          type: 'INCORRECT',
+          title: 'CUBA LAGI! 💪',
+          explanation: 'Fikirkan semula kesan baik mengamalkan adab makan dan minum. Kamu pasti boleh!'
+        });
+      }
+    },
+    [currentIndex, questionSolved]
+  );
+
+  // Simpan rujukan fungsi terkini untuk digunakan dalam animation frame
+  const handleAnswerSubmissionRef = useRef(handleAnswerSubmission);
+  useEffect(() => {
+    handleAnswerSubmissionRef.current = handleAnswerSubmission;
+  }, [handleAnswerSubmission]);
+
+  const startDetectionLoop = () => {
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+
+    const detect = () => {
+      const video = videoRef.current;
+      const landmarker = faceLandmarkerRef.current;
+
+      let detectedAngle = null;
+
+      if (video && landmarker && video.readyState >= 2) {
+        try {
+          const nowInMs = performance.now();
+          if (video.currentTime !== lastVideoTimeRef.current) {
+            lastVideoTimeRef.current = video.currentTime;
+            const results = landmarker.detectForVideo(video, nowInMs);
+
+            if (results && results.faceLandmarks && results.faceLandmarks.length > 0) {
+              const landmarks = results.faceLandmarks[0];
+              const eyeA = landmarks[33];
+              const eyeB = landmarks[263];
+
+              if (eyeA && eyeB) {
+                const dx = eyeB.x - eyeA.x;
+                const dy = eyeB.y - eyeA.y;
+                const angleRad = Math.atan2(dy, dx);
+                const angleDeg = -((angleRad * 180) / Math.PI);
+
+                setFaceDetected(true);
+                setRawRollAngle(angleDeg);
+                detectedAngle = angleDeg - calibrationOffsetRef.current;
+              }
+            } else {
+              setFaceDetected(false);
+            }
+          }
+        } catch (frameErr) {
+          // Abaikan ralat bingkai sementara supaya gelung animasi tidak terhenti
+        }
+      }
+
+      // Kawalan Alternatif Papan Kekunci (Jika kekunci anak panah ditekan)
+      if (keyHoldSideRef.current === 'LEFT') {
+        detectedAngle = -22;
+      } else if (keyHoldSideRef.current === 'RIGHT') {
+        detectedAngle = 22;
+      }
+
+      // Kemaskini logik pemilihan jawapan semasa di Skrin Permainan Utama
+      if (
+        screenRef.current === 'PLAYING' &&
+        !feedbackRef.current &&
+        !cooldownRef.current &&
+        detectedAngle !== null
+      ) {
+        let currentSide = null;
+        if (detectedAngle <= -TILT_THRESHOLD_DEG) {
+          currentSide = 'LEFT';
+        } else if (detectedAngle >= TILT_THRESHOLD_DEG) {
+          currentSide = 'RIGHT';
+        }
+
+        if (currentSide) {
+          setActiveTiltSide(currentSide);
+          if (holdingSideRef.current !== currentSide) {
+            holdingSideRef.current = currentSide;
+            holdStartTimeRef.current = performance.now();
+            lastTickStepRef.current = 0;
+          } else {
+            const elapsed = performance.now() - holdStartTimeRef.current;
+            const progress = Math.min(1, elapsed / HOLD_DURATION_MS);
+            setHoldProgress(progress);
+
+            // Bunyi detik lembut setiap 25% kemajuan
+            const step = Math.floor(progress * 4);
+            if (step > lastTickStepRef.current && step < 4) {
+              lastTickStepRef.current = step;
+              soundEngine.playTick(progress);
+            }
+
+            if (progress >= 1) {
+              handleAnswerSubmissionRef.current(currentSide);
+            }
+          }
+        } else {
+          // Kepala kembali tegak sebelum 0.8 saat
+          if (holdingSideRef.current !== null) {
+            holdingSideRef.current = null;
+            holdStartTimeRef.current = null;
+            setActiveTiltSide(null);
+            setHoldProgress(0);
+          }
+        }
+      } else if (screenRef.current !== 'PLAYING' || feedbackRef.current || cooldownRef.current) {
+        if (holdingSideRef.current !== null) {
+          holdingSideRef.current = null;
+          holdStartTimeRef.current = null;
+          setActiveTiltSide(null);
+          setHoldProgress(0);
+        }
+      }
+
+      animFrameRef.current = requestAnimationFrame(detect);
+    };
+
+    animFrameRef.current = requestAnimationFrame(detect);
+  };
+
+  // Pastikan loop berjalan walaupun dalam mod tanpa kamera (supaya kekunci anak panah berfungsi lancar)
+  useEffect(() => {
+    if (screen === 'PLAYING' && !animFrameRef.current) {
+      startDetectionLoop();
+    }
+  }, [screen]);
+
+  // ==========================================================================
+  // KAWALAN ALTERNATIF: PAPAN KEKUNCI (ARROW LEFT / ARROW RIGHT)
+  // ==========================================================================
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (screenRef.current !== 'PLAYING' || feedbackRef.current || cooldownRef.current) return;
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        keyHoldSideRef.current = 'LEFT';
+        setRawRollAngle(calibrationOffsetRef.current - 22);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        keyHoldSideRef.current = 'RIGHT';
+        setRawRollAngle(calibrationOffsetRef.current + 22);
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        keyHoldSideRef.current = null;
+        if (!faceDetected) {
+          setRawRollAngle(calibrationOffsetRef.current);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [faceDetected]);
+
+  // ==========================================================================
+  // FUNGSI NAVIGASI & KALIBRASI
+  // ==========================================================================
+  const handleCalibrate = () => {
+    setCalibrationOffset(rawRollAngle);
+    setCalibratedBanner(true);
+    soundEngine.playTone(660, 0.15, 'sine', 0.12);
+    setTimeout(() => setCalibratedBanner(false), 2200);
+  };
+
+  const startNewGame = () => {
+    soundEngine.init();
+    if (soundOn) soundEngine.startBGM();
+    setCurrentIndex(0);
+    setScore(0);
+    setCorrectCount(0);
+    setQuestionSolved(false);
+    setFeedback(null);
+    setActiveTiltSide(null);
+    setHoldProgress(0);
+    setCooldownActive(true);
+    setTimeout(() => setCooldownActive(false), 1000);
+    setScreen('PLAYING');
+  };
+
+  const goToNextQuestion = () => {
+    setFeedback(null);
+    setQuestionSolved(false);
+    setActiveTiltSide(null);
+    setHoldProgress(0);
+    setCooldownActive(true);
+    setTimeout(() => setCooldownActive(false), 1100);
+
+    if (currentIndex + 1 < QUESTIONS.length) {
+      setCurrentIndex((prev) => prev + 1);
+    } else {
+      setScreen('CELEBRATION');
+      soundEngine.playVictory();
+    }
+  };
+
+  const retryCurrentQuestion = () => {
+    setFeedback(null);
+    setActiveTiltSide(null);
+    setHoldProgress(0);
+    setCooldownActive(true);
+    setTimeout(() => setCooldownActive(false), 1000);
+  };
+
+  const currentQ = QUESTIONS[currentIndex];
+
+  // ==========================================================================
+  // RENDER ANTARA MUKA (4 SKRIN UTAMA)
+  // ==========================================================================
+  return (
+    <div className="min-h-screen w-full overflow-x-hidden relative font-['Nunito',sans-serif] text-slate-800 select-none bg-gradient-to-b from-[#E0F4FF] via-[#E8FDF5] to-[#FFF6CC]">
+      {/* Google Fonts & Animasi Kustom */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800;900&display=swap');
+        
+        .font-display {
+          font-family: 'Fredoka', cursive, sans-serif;
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-8px); }
+        }
+        @keyframes drift {
+          0% { transform: translateX(-10px); }
+          50% { transform: translateX(15px); }
+          100% { transform: translateX(-10px); }
+        }
+        @keyframes confettiFall {
+          0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(105vh) rotate(720deg); opacity: 0.85; }
+        }
+      `}</style>
+
+      {/* ==================== LATAR BELAKANG TAMAN & BILIK DARJAH KARTUN ==================== */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        {/* Matahari Ceria */}
+        <div className="absolute top-6 right-8 w-24 h-24 rounded-full bg-yellow-300/80 blur-sm animate-pulse" />
+        <div className="absolute top-8 right-10 w-20 h-20 rounded-full bg-amber-300 border-4 border-yellow-100 shadow-lg flex items-center justify-center text-3xl">
+          ☀️
+        </div>
+
+        {/* Awan Gebu */}
+        <div className="absolute top-12 left-10 text-6xl opacity-75 animate-[drift_9s_ease-in-out_infinite]">☁️</div>
+        <div className="absolute top-24 left-1/3 text-5xl opacity-60 animate-[drift_12s_ease-in-out_infinite]">☁️</div>
+        <div className="absolute top-16 right-1/4 text-6xl opacity-70 animate-[drift_10s_ease-in-out_infinite]">☁️</div>
+
+        {/* Bintang Terapung Pastel */}
+        <div className="absolute top-1/4 left-6 text-2xl opacity-60 animate-bounce">✨</div>
+        <div className="absolute top-1/3 right-8 text-2xl opacity-60 animate-bounce">⭐</div>
+
+        {/* Bukit Hijau & Bunga Taman di Bahagian Bawah */}
+        <svg
+          className="absolute bottom-0 left-0 w-full h-36 md:h-48"
+          viewBox="0 0 1440 220"
+          preserveAspectRatio="none"
+        >
+          <path
+            d="M0,110 C320,30 640,170 960,90 C1200,30 1350,100 1440,80 L1440,220 L0,220 Z"
+            fill="#A7F3D0"
+          />
+          <path
+            d="M0,150 C420,90 880,195 1440,120 L1440,220 L0,220 Z"
+            fill="#6EE7B7"
+          />
+        </svg>
+        <div className="hidden sm:flex fixed bottom-3 left-8 gap-6 text-2xl opacity-85">
+          <span>🌷</span>
+          <span>🌼</span>
+          <span>🌻</span>
+        </div>
+      </div>
+
+      {/* ==================== BAR ATAS GLOBAL (BUNYI & PENUNJUK SUBJEK) ==================== */}
+      <header className="relative z-20 max-w-6xl mx-auto px-4 pt-3 pb-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 bg-white/90 backdrop-blur px-3.5 py-1.5 rounded-full border-2 border-sky-200 shadow-sm">
+          <span className="text-lg">🕌</span>
+          <span className="text-xs sm:text-sm font-extrabold text-sky-800 tracking-wide">
+            Pendidikan Islam • Sekolah Rendah
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {screen === 'PLAYING' && (
+            <button
+              onClick={() => setScreen('SETUP')}
+              className="flex items-center gap-1.5 bg-white/95 hover:bg-amber-50 text-amber-800 font-extrabold text-xs sm:text-sm px-3.5 py-2 rounded-full border-2 border-amber-300 shadow-sm active:scale-95 transition"
+              title="Kalibrasi semula kedudukan kepala"
+            >
+              <Compass className="w-4 h-4 text-amber-600" />
+              <span className="hidden sm:inline">Kalibrasi</span>
+            </button>
+          )}
+
+          <button
+            onClick={toggleSound}
+            className={`flex items-center gap-1.5 font-extrabold text-xs sm:text-sm px-3.5 py-2 rounded-full border-2 shadow-sm active:scale-95 transition ${
+              soundOn
+                ? 'bg-emerald-100 border-emerald-400 text-emerald-900'
+                : 'bg-rose-100 border-rose-300 text-rose-800'
+            }`}
+            aria-label="Tukar Bunyi"
+          >
+            {soundOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            <span>{soundOn ? 'Bunyi: ON' : 'Bunyi: OFF'}</span>
+          </button>
+        </div>
+      </header>
+
+      {/* ==================== ELEMEN VIDEO TERSEMBUNYI / DIKONGSI UNTUK PENGESANAN ==================== */}
+      {/* Sentiasa wujud dalam DOM supaya aliran kamera tidak terputus antara skrin */}
+      <div
+        className={
+          screen === 'PLAYING'
+            ? 'fixed bottom-4 right-4 z-30 flex flex-col items-end pointer-events-none'
+            : 'hidden'
+        }
+      >
+        {cameraStatus === 'READY' && (
+          <div className="bg-white/95 p-2 rounded-2xl border-4 border-sky-300 shadow-xl pointer-events-auto">
+            <div className="relative w-32 h-24 sm:w-40 sm:h-28 rounded-xl overflow-hidden bg-slate-900">
+              <video
+                ref={screen === 'PLAYING' ? videoRef : null}
+                playsInline
+                muted
+                className="w-full h-full object-cover -scale-x-100"
+              />
+              {/* Garis Panduan Tegak & Penunjuk Sudut */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div
+                  className="w-0.5 h-full bg-yellow-300/80 transition-transform duration-75"
+                  style={{ transform: `rotate(${effectiveAngle}deg)` }}
+                />
+              </div>
+              <div
+                className={`absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                  faceDetected ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                }`}
+              >
+                {faceDetected ? `${Math.round(effectiveAngle)}°` : 'Cari Wajah...'}
+              </div>
+            </div>
+            <div className="mt-1 flex items-center justify-between text-[11px] font-extrabold text-slate-600 px-1">
+              <span>⬅️ Kiri</span>
+              <span className="text-sky-700">Kamera</span>
+              <span>Kanan ➡️</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ===================================================================== */}
+      {/* SKRIN 1: WELCOME SCREEN                                               */}
+      {/* ===================================================================== */}
+      {screen === 'WELCOME' && (
+        <main className="relative z-10 max-w-4xl mx-auto px-4 py-4 sm:py-8 flex flex-col items-center text-center">
+          {/* Lencana Topik */}
+          <div className="inline-flex items-center gap-2 bg-[#FFE4EC] border-2 border-pink-300 text-pink-900 font-extrabold px-5 py-1.5 rounded-full text-sm sm:text-base shadow-sm mb-4">
+            <Sparkles className="w-4 h-4 text-pink-600" />
+            <span>Topik: Kesan Mengamalkan Adab Makan dan Minum</span>
+          </div>
+
+          {/* Tajuk Utama */}
+          <h1 className="font-display text-3xl sm:text-5xl md:text-6xl font-bold text-sky-900 drop-shadow-sm leading-tight">
+            🎮 MISI ADAB MAKAN &amp; MINUM
+          </h1>
+
+          {/* Subtajuk */}
+          <p className="mt-3 font-display text-xl sm:text-2xl md:text-3xl font-semibold text-emerald-700 bg-white/80 px-6 py-2 rounded-2xl border-2 border-emerald-200 shadow-sm">
+            “Sengetkan Kepala, Pilih Jawapan!”
+          </p>
+
+          {/* Watak Kartun Muslim & Muslimah */}
+          <div className="my-6 sm:my-8 flex items-end justify-center gap-6 sm:gap-12 bg-white/75 backdrop-blur-sm px-8 py-6 rounded-3xl border-4 border-white shadow-xl">
+            <CartoonCharacter gender="boy" name="Ali & Rakan" tiltAngle={-8} mood="happy" size={145} />
+            <div className="hidden sm:flex flex-col items-center justify-center pb-8">
+              <span className="text-4xl animate-bounce">🍽️</span>
+              <span className="mt-2 text-xs font-extrabold text-amber-800 bg-amber-100 px-3 py-1 rounded-full">
+                Bismillah!
+              </span>
+            </div>
+            <CartoonCharacter gender="girl" name="Aisyah & Rakan" tiltAngle={8} mood="happy" size={145} />
+          </div>
+
+          {/* Butang Tindakan Utama */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full max-w-lg">
+            <button
+              onClick={() => {
+                soundEngine.init();
+                if (soundOn) soundEngine.startBGM();
+                setScreen('SETUP');
+              }}
+              className="w-full sm:w-auto flex-1 flex items-center justify-center gap-3 bg-gradient-to-b from-emerald-400 to-emerald-600 hover:from-emerald-500 hover:to-emerald-700 text-white font-display text-xl sm:text-2xl font-bold px-8 py-4 rounded-3xl border-b-4 border-emerald-800 shadow-lg hover:scale-105 active:scale-95 transition cursor-pointer"
+            >
+              <Play className="w-7 h-7 fill-white" />
+              <span>MULA BERMAIN</span>
+            </button>
+
+            <button
+              onClick={() => {
+                soundEngine.init();
+                setShowHowToModal(true);
+              }}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-b from-amber-300 to-amber-400 hover:from-amber-400 hover:to-amber-500 text-amber-950 font-display text-lg sm:text-xl font-bold px-6 py-4 rounded-3xl border-b-4 border-amber-600 shadow-lg hover:scale-105 active:scale-95 transition cursor-pointer"
+            >
+              <HelpCircle className="w-6 h-6" />
+              <span>CARA BERMAIN</span>
+            </button>
+          </div>
+
+          {/* Nota Privasi Mesra Kanak-kanak */}
+          <p className="mt-6 flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-600 bg-white/80 px-4 py-2 rounded-full">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Selamat &amp; peribadi: Video kamera diproses terus di peranti kamu dan tidak disimpan.</span>
+          </p>
+        </main>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL CARA BERMAIN                                                    */}
+      {/* ===================================================================== */}
+      {showHowToModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border-4 border-sky-300 max-w-xl w-full p-6 sm:p-8 shadow-2xl relative">
+            <h2 className="font-display text-2xl sm:text-3xl font-bold text-sky-900 text-center mb-4">
+              📖 CARA BERMAIN
+            </h2>
+
+            <div className="space-y-3 text-base sm:text-lg font-bold text-slate-700">
+              <div className="flex items-start gap-3 bg-sky-50 p-3.5 rounded-2xl border-2 border-sky-200">
+                <span className="text-2xl">1️⃣</span>
+                <p>Aktifkan kamera dan pastikan wajah kamu berada di tengah skrin.</p>
+              </div>
+              <div className="flex items-start gap-3 bg-emerald-50 p-3.5 rounded-2xl border-2 border-emerald-200">
+                <span className="text-2xl">2️⃣</span>
+                <p>
+                  <span className="text-emerald-700 font-black">Sengetkan kepala ke KIRI</span> untuk memilih kad jawapan KIRI, atau <span className="text-pink-600 font-black">sengetkan kepala ke KANAN</span> untuk memilih kad jawapan KANAN.
+                </p>
+              </div>
+              <div className="flex items-start gap-3 bg-amber-50 p-3.5 rounded-2xl border-2 border-amber-200">
+                <span className="text-2xl">3️⃣</span>
+                <p>Tahan sengetan kepala selama <span className="text-amber-800 font-black">0.8 saat</span> sehingga bulatan penuh 100% untuk mengesahkan jawapan!</p>
+              </div>
+              <div className="flex items-start gap-3 bg-pink-50 p-3.5 rounded-2xl border-2 border-pink-200">
+                <span className="text-2xl">⌨️</span>
+                <p className="text-sm sm:text-base">
+                  Tiada kamera? Kamu juga boleh menekan <span className="underline">kad jawapan secara terus</span> atau menggunakan <span className="underline">kekunci anak panah Kiri / Kanan</span>!
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowHowToModal(false)}
+              className="mt-6 w-full bg-sky-500 hover:bg-sky-600 text-white font-display text-xl font-bold py-3.5 rounded-2xl border-b-4 border-sky-700 shadow-md active:scale-95 transition cursor-pointer"
+            >
+              FAHAM! JOM MULA 👍
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* SKRIN 2: CAMERA SETUP & CALIBRATION                                   */}
+      {/* ===================================================================== */}
+      {screen === 'SETUP' && (
+        <main className="relative z-10 max-w-4xl mx-auto px-4 py-4 sm:py-6 flex flex-col items-center">
+          <div className="w-full bg-white/95 backdrop-blur rounded-3xl border-4 border-sky-300 shadow-xl p-5 sm:p-8">
+            <div className="text-center mb-5">
+              <h2 className="font-display text-2xl sm:text-4xl font-bold text-sky-900">
+                📷 Jom aktifkan kamera!
+              </h2>
+              <p className="mt-2 text-base sm:text-lg font-extrabold text-slate-700">
+                Pastikan wajah kamu kelihatan di dalam kamera.
+              </p>
+              <p className="text-sm sm:text-base font-bold text-emerald-700">
+                Sengetkan kepala ke KIRI atau KANAN untuk memilih jawapan.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+              {/* Kotak Pratonton Kamera */}
+              <div className="flex flex-col items-center">
+                <div className="relative w-full aspect-[4/3] max-w-sm rounded-3xl overflow-hidden bg-slate-900 border-4 border-sky-400 shadow-inner flex items-center justify-center">
+                  <video
+                    ref={screen === 'SETUP' ? videoRef : null}
+                    playsInline
+                    muted
+                    className={`w-full h-full object-cover -scale-x-100 ${
+                      cameraStatus === 'READY' ? 'block' : 'hidden'
+                    }`}
+                  />
+
+                  {/* Panduan Bingkai Muka */}
+                  {cameraStatus === 'READY' && (
+                    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
+                      <div
+                        className={`w-40 h-48 rounded-full border-4 border-dashed transition-colors ${
+                          faceDetected ? 'border-emerald-400' : 'border-amber-300'
+                        }`}
+                      />
+                      <span
+                        className={`mt-2 px-3 py-1 rounded-full text-xs font-extrabold shadow ${
+                          faceDetected
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-amber-400 text-amber-950 animate-pulse'
+                        }`}
+                      >
+                        {faceDetected ? '✅ Wajah Dikesan!' : '🔍 Letak wajah di dalam bulatan'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Keadaan Belum Aktif / Memuatkan / Ralat */}
+                  {cameraStatus === 'IDLE' && (
+                    <div className="text-center p-6 text-white">
+                      <Camera className="w-14 h-14 mx-auto text-sky-300 mb-3" />
+                      <p className="font-bold text-base">Klik butang di bawah untuk hidupkan kamera</p>
+                    </div>
+                  )}
+
+                  {(cameraStatus === 'REQUESTING' || cameraStatus === 'LOADING_MODEL') && (
+                    <div className="text-center p-6 text-white">
+                      <div className="w-12 h-12 border-4 border-sky-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                      <p className="font-bold text-base">
+                        {cameraStatus === 'REQUESTING'
+                          ? 'Meminta kebenaran kamera...'
+                          : 'Menyediakan pengesan wajah pintar...'}
+                      </p>
+                    </div>
+                  )}
+
+                  {cameraStatus === 'ERROR' && (
+                    <div className="text-center p-5 text-rose-200">
+                      <CameraOff className="w-12 h-12 mx-auto text-rose-400 mb-2" />
+                      <p className="font-bold text-sm">{cameraErrorMsg}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Butang Aktifkan Kamera */}
+                <button
+                  onClick={startCameraAndFaceTracking}
+                  disabled={cameraStatus === 'REQUESTING' || cameraStatus === 'LOADING_MODEL'}
+                  className="mt-4 flex items-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-display text-lg font-bold px-6 py-3 rounded-2xl border-b-4 border-sky-700 shadow-md active:scale-95 transition cursor-pointer"
+                >
+                  <Camera className="w-5 h-5" />
+                  <span>{cameraStatus === 'READY' ? 'Segarkan Kamera' : 'Aktifkan Kamera'}</span>
+                </button>
+              </div>
+
+              {/* Panel Kalibrasi & Status Kesediaan */}
+              <div className="flex flex-col justify-between bg-[#F0FDF4] p-5 rounded-3xl border-3 border-emerald-200 space-y-4">
+                <div>
+                  <h3 className="font-display text-xl font-bold text-emerald-900 flex items-center gap-2">
+                    <Compass className="w-6 h-6 text-emerald-600" />
+                    <span>Kalibrasi Sengetan Kepala</span>
+                  </h3>
+                  <p className="text-sm font-bold text-slate-600 mt-1">
+                    Duduk tegak dan cuba sengetkan kepala ke kiri dan kanan untuk menguji meter di bawah:
+                  </p>
+                </div>
+
+                {/* Meter Visual KIRI - TEGAK - KANAN */}
+                <div className="bg-white p-4 rounded-2xl border-2 border-emerald-200 shadow-sm">
+                  <div className="flex justify-between text-xs font-black mb-2">
+                    <span className={effectiveAngle <= -15 ? 'text-sky-600 scale-110 transition' : 'text-slate-400'}>
+                      ⬅️ KIRI (-15°)
+                    </span>
+                    <span className="text-emerald-700">TEGAK ({Math.round(effectiveAngle)}°)</span>
+                    <span className={effectiveAngle >= 15 ? 'text-pink-600 scale-110 transition' : 'text-slate-400'}>
+                      KANAN (+15°) ➡️
+                    </span>
+                  </div>
+
+                  {/* Bar Meter */}
+                  <div className="relative h-6 bg-slate-100 rounded-full overflow-hidden border border-slate-300">
+                    {/* Zon Aktif Kiri & Kanan */}
+                    <div className="absolute inset-y-0 left-0 w-1/4 bg-sky-200/70 border-r-2 border-sky-400" />
+                    <div className="absolute inset-y-0 right-0 w-1/4 bg-pink-200/70 border-l-2 border-pink-400" />
+                    {/* Garis Tengah */}
+                    <div className="absolute inset-y-0 left-1/2 w-0.5 bg-slate-400" />
+                    {/* Penunjuk Kedudukan Kepala */}
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-amber-400 border-2 border-amber-800 shadow transition-all duration-75"
+                      style={{
+                        left: `${Math.max(5, Math.min(95, 50 + (effectiveAngle / 40) * 50))}%`
+                      }}
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleCalibrate}
+                    disabled={cameraStatus !== 'READY' || !faceDetected}
+                    className="mt-3 w-full bg-amber-300 hover:bg-amber-400 disabled:opacity-50 text-amber-950 font-extrabold text-sm py-2.5 px-4 rounded-xl border-b-3 border-amber-500 transition cursor-pointer"
+                  >
+                    🎯 Tetapkan Posisi Tegak (Kalibrasi)
+                  </button>
+
+                  {calibratedBanner && (
+                    <p className="mt-2 text-center text-xs font-extrabold text-emerald-700 animate-bounce">
+                      ✅ Posisi tegak berjaya dikalibrasi!
+                    </p>
+                  )}
+                </div>
+
+                {/* Penunjuk Status Sedia */}
+                <div
+                  className={`p-3.5 rounded-2xl border-2 flex items-center gap-3 ${
+                    cameraStatus === 'READY' && faceDetected
+                      ? 'bg-emerald-100 border-emerald-400 text-emerald-900'
+                      : 'bg-amber-50 border-amber-300 text-amber-900'
+                  }`}
+                >
+                  {cameraStatus === 'READY' && faceDetected ? (
+                    <>
+                      <CheckCircle2 className="w-7 h-7 text-emerald-600 shrink-0" />
+                      <div className="text-sm font-extrabold">
+                        SEDIA! Pengesan kepala aktif. Klik butang mula di bawah!
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-7 h-7 text-amber-600 shrink-0" />
+                      <div className="text-xs sm:text-sm font-bold">
+                        {cameraStatus === 'READY'
+                          ? 'Halakan wajah ke kamera supaya status bertukar SEDIA.'
+                          : 'Aktifkan kamera di sebelah, atau terus mula menggunakan kawalan sentuh/kekunci.'}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Butang Mula Permainan */}
+            <div className="mt-6 pt-4 border-t-2 border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <button
+                onClick={() => setScreen('WELCOME')}
+                className="w-full sm:w-auto px-5 py-3 rounded-2xl font-extrabold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                ← Kembali
+              </button>
+
+              <button
+                onClick={startNewGame}
+                className="w-full sm:w-auto flex items-center justify-center gap-3 bg-gradient-to-b from-emerald-400 to-emerald-600 hover:from-emerald-500 hover:to-emerald-700 text-white font-display text-xl sm:text-2xl font-bold px-8 py-4 rounded-3xl border-b-4 border-emerald-800 shadow-lg hover:scale-105 active:scale-95 transition cursor-pointer"
+              >
+                <Play className="w-6 h-6 fill-white" />
+                <span>
+                  {cameraStatus === 'READY' ? 'MULA PERMAINAN!' : 'MULA (MOD SENTUH / KEKUNCI)'}
+                </span>
+              </button>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* ===================================================================== */}
+      {/* SKRIN 3: MAIN GAME (8 SOALAN INTERAKTIF)                              */}
+      {/* ===================================================================== */}
+      {screen === 'PLAYING' && currentQ && (
+        <main className="relative z-10 max-w-6xl mx-auto px-4 pt-1 pb-24 flex flex-col items-center">
+          {/* Bar Kemajuan Soalan & Markah */}
+          <div className="w-full max-w-4xl bg-white/90 backdrop-blur rounded-2xl border-2 border-sky-200 px-4 py-2.5 shadow-sm flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-3 flex-1 min-w-[200px]">
+              <span className="font-display font-bold text-sky-900 text-base sm:text-lg whitespace-nowrap">
+                Soalan {currentIndex + 1} / {QUESTIONS.length}
+              </span>
+              <div className="flex-1 h-3.5 bg-sky-100 rounded-full overflow-hidden border border-sky-200">
+                <div
+                  className="h-full bg-gradient-to-r from-sky-400 to-emerald-400 transition-all duration-300 rounded-full"
+                  style={{ width: `${((currentIndex + 1) / QUESTIONS.length) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 bg-amber-100 border-2 border-amber-300 px-4 py-1 rounded-full">
+              <span className="text-lg">⭐</span>
+              <span className="font-display font-bold text-amber-900 text-base sm:text-lg">
+                Markah: {score}
+              </span>
+            </div>
+          </div>
+
+          {/* Kad Soalan di Bahagian Atas */}
+          <div className="w-full max-w-4xl bg-white rounded-3xl border-4 border-amber-300 shadow-lg p-5 sm:p-6 text-center mb-4 relative">
+            <span className="inline-block bg-amber-100 text-amber-900 font-extrabold text-xs sm:text-sm px-3.5 py-1 rounded-full mb-2">
+              Soalan {currentQ.id}
+            </span>
+            <h2 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-slate-800 leading-snug">
+              {currentQ.question}
+            </h2>
+          </div>
+
+          {/* Kawasan Tengah: Kad Jawapan KIRI + Watak Kartun + Kad Jawapan KANAN */}
+          <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-12 gap-4 items-center my-1">
+            {/* ==================== KAD JAWAPAN KIRI ==================== */}
+            <div className="md:col-span-5 order-2 md:order-1">
+              <button
+                type="button"
+                disabled={!!feedback || cooldownActive}
+                onClick={() => handleAnswerSubmission('LEFT')}
+                className={`w-full min-h-[150px] sm:min-h-[185px] rounded-3xl p-5 sm:p-6 border-4 transition-all duration-150 flex flex-col items-center justify-between text-center shadow-lg cursor-pointer relative overflow-hidden ${
+                  activeTiltSide === 'LEFT'
+                    ? 'bg-sky-100 border-sky-500 scale-105 ring-4 ring-sky-300'
+                    : 'bg-white/95 hover:bg-sky-50 border-sky-300'
+                }`}
+              >
+                {/* Lencana Arah Kiri */}
+                <div className="w-full flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 bg-sky-500 text-white font-display font-bold text-sm sm:text-base px-3.5 py-1 rounded-full shadow-sm">
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>KIRI</span>
+                  </span>
+
+                  {activeTiltSide === 'LEFT' && (
+                    <CircularProgressRing progress={holdProgress} size={56} strokeWidth={6} color="#0284C7" />
+                  )}
+                </div>
+
+                {/* Teks Jawapan Kiri */}
+                <p className="my-3 font-display text-xl sm:text-2xl font-bold text-sky-950 leading-snug">
+                  {currentQ.leftText}
+                </p>
+
+                <span className="text-xs font-extrabold text-sky-700">
+                  {activeTiltSide === 'LEFT'
+                    ? 'Terus tahan sengetan kepala...'
+                    : 'Senget kepala ke KIRI ⬅️'}
+                </span>
+              </button>
+            </div>
+
+            {/* ==================== WATAK KARTUN & ANAK PANAH ARAH ==================== */}
+            <div className="md:col-span-2 order-1 md:order-2 flex flex-col items-center justify-center py-1">
+              <div className="flex items-center gap-3">
+                <span
+                  className={`text-2xl sm:text-3xl transition-transform ${
+                    activeTiltSide === 'LEFT' ? 'scale-125 -translate-x-1' : 'opacity-60 animate-pulse'
+                  }`}
+                >
+                  ⬅️
+                </span>
+
+                <CartoonCharacter
+                  gender={currentQ.gender}
+                  name={currentQ.characterName}
+                  tiltAngle={effectiveAngle}
+                  mood={
+                    feedback?.type === 'CORRECT'
+                      ? 'excited'
+                      : feedback?.type === 'INCORRECT'
+                      ? 'encourage'
+                      : 'happy'
+                  }
+                  size={125}
+                />
+
+                <span
+                  className={`text-2xl sm:text-3xl transition-transform ${
+                    activeTiltSide === 'RIGHT' ? 'scale-125 translate-x-1' : 'opacity-60 animate-pulse'
+                  }`}
+                >
+                  ➡️
+                </span>
+              </div>
+
+              {cooldownActive && !feedback && (
+                <span className="mt-1 text-xs font-extrabold text-amber-800 bg-amber-100 px-3 py-0.5 rounded-full">
+                  Bersedia...
+                </span>
+              )}
+            </div>
+
+            {/* ==================== KAD JAWAPAN KANAN ==================== */}
+            <div className="md:col-span-5 order-3">
+              <button
+                type="button"
+                disabled={!!feedback || cooldownActive}
+                onClick={() => handleAnswerSubmission('RIGHT')}
+                className={`w-full min-h-[150px] sm:min-h-[185px] rounded-3xl p-5 sm:p-6 border-4 transition-all duration-150 flex flex-col items-center justify-between text-center shadow-lg cursor-pointer relative overflow-hidden ${
+                  activeTiltSide === 'RIGHT'
+                    ? 'bg-pink-100 border-pink-500 scale-105 ring-4 ring-pink-300'
+                    : 'bg-white/95 hover:bg-pink-50 border-pink-300'
+                }`}
+              >
+                {/* Lencana Arah Kanan */}
+                <div className="w-full flex items-center justify-between">
+                  {activeTiltSide === 'RIGHT' ? (
+                    <CircularProgressRing progress={holdProgress} size={56} strokeWidth={6} color="#DB2777" />
+                  ) : (
+                    <span />
+                  )}
+
+                  <span className="inline-flex items-center gap-1.5 bg-pink-500 text-white font-display font-bold text-sm sm:text-base px-3.5 py-1 rounded-full shadow-sm ml-auto">
+                    <span>KANAN</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </span>
+                </div>
+
+                {/* Teks Jawapan Kanan */}
+                <p className="my-3 font-display text-xl sm:text-2xl font-bold text-pink-950 leading-snug">
+                  {currentQ.rightText}
+                </p>
+
+                <span className="text-xs font-extrabold text-pink-700">
+                  {activeTiltSide === 'RIGHT'
+                    ? 'Terus tahan sengetan kepala...'
+                    : 'Senget kepala ke KANAN ➡️'}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Petunjuk Kawalan Alternatif untuk Pemain Tanpa Kamera */}
+          <div className="mt-4 text-center text-xs sm:text-sm font-bold text-slate-600 bg-white/80 px-4 py-1.5 rounded-full border border-slate-200">
+            💡 Tip: Sengetkan kepala selama 0.8 saat, atau klik kad jawapan / tekan anak panah ⬅️ ➡️
+          </div>
+        </main>
+      )}
+
+      {/* ===================================================================== */}
+      {/* PAPARAN MAKLUM BALAS JAWAPAN (BETUL / CUBA LAGI)                      */}
+      {/* ===================================================================== */}
+      {screen === 'PLAYING' && feedback && (
+        <div className="fixed inset-0 z-40 bg-slate-900/45 backdrop-blur-xs flex items-center justify-center p-4">
+          <ConfettiCelebration active={feedback.type === 'CORRECT'} />
+
+          <div
+            className={`max-w-lg w-full rounded-3xl border-4 p-6 sm:p-8 text-center shadow-2xl transform transition-all ${
+              feedback.type === 'CORRECT'
+                ? 'bg-gradient-to-b from-emerald-50 to-white border-emerald-400'
+                : 'bg-gradient-to-b from-amber-50 to-white border-amber-400'
+            }`}
+          >
+            <div className="flex justify-center mb-2">
+              <CartoonCharacter
+                gender={currentQ.gender}
+                tiltAngle={0}
+                mood={feedback.type === 'CORRECT' ? 'excited' : 'encourage'}
+                size={125}
+              />
+            </div>
+
+            <h3
+              className={`font-display text-2xl sm:text-3xl font-bold ${
+                feedback.type === 'CORRECT' ? 'text-emerald-700' : 'text-amber-700'
+              }`}
+            >
+              {feedback.title}
+            </h3>
+
+            {feedback.type === 'CORRECT' && (
+              <div className="mt-2 inline-block bg-yellow-300 text-yellow-950 font-black px-4 py-1 rounded-full text-sm sm:text-base shadow-xs">
+                +10 Markah! ⭐
+              </div>
+            )}
+
+            <p className="mt-4 text-base sm:text-lg font-bold text-slate-700 bg-white/90 p-4 rounded-2xl border-2 border-slate-100 leading-relaxed">
+              {feedback.explanation}
+            </p>
+
+            {feedback.type === 'CORRECT' ? (
+              <button
+                onClick={goToNextQuestion}
+                className="mt-6 w-full flex items-center justify-center gap-2 bg-gradient-to-b from-emerald-400 to-emerald-600 hover:from-emerald-500 hover:to-emerald-700 text-white font-display text-xl sm:text-2xl font-bold py-4 rounded-2xl border-b-4 border-emerald-800 shadow-lg active:scale-95 transition cursor-pointer"
+              >
+                <span>
+                  {currentIndex + 1 < QUESTIONS.length ? 'SOALAN SETERUSNYA ➡️' : 'LIHAT KEPUTUSAN 🎉'}
+                </span>
+              </button>
+            ) : (
+              <button
+                onClick={retryCurrentQuestion}
+                className="mt-6 w-full flex items-center justify-center gap-2 bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-amber-950 font-display text-xl sm:text-2xl font-bold py-4 rounded-2xl border-b-4 border-amber-700 shadow-lg active:scale-95 transition cursor-pointer"
+              >
+                <RotateCcw className="w-6 h-6" />
+                <span>CUBA JAWAB SEMULA</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* SKRIN 4: FINAL CELEBRATION                                            */}
+      {/* ===================================================================== */}
+      {screen === 'CELEBRATION' && (
+        <main className="relative z-10 max-w-4xl mx-auto px-4 py-4 sm:py-8 flex flex-col items-center text-center">
+          <ConfettiCelebration active={true} />
+
+          <div className="w-full bg-white/95 backdrop-blur rounded-3xl border-4 border-yellow-400 shadow-2xl p-6 sm:p-10">
+            <h1 className="font-display text-3xl sm:text-5xl font-bold text-emerald-700 drop-shadow-xs">
+              TAHNIAH! MISI BERJAYA! 🎉
+            </h1>
+
+            {/* Trofi Animasi & Watak Kartun Meraikan Kejayaan */}
+            <div className="my-6 flex flex-wrap items-end justify-center gap-4 sm:gap-8">
+              <CartoonCharacter gender="boy" name="Ali" tiltAngle={-6} mood="celebrate" size={135} />
+
+              <div className="flex flex-col items-center animate-bounce">
+                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gradient-to-b from-yellow-200 to-amber-300 border-4 border-amber-400 flex items-center justify-center shadow-xl">
+                  <Trophy className="w-16 h-16 sm:w-20 sm:h-20 text-amber-600 fill-amber-400" />
+                </div>
+                <span className="mt-2 bg-amber-400 text-amber-950 font-display font-bold px-4 py-1 rounded-full text-sm shadow">
+                  JUARA ADAB!
+                </span>
+              </div>
+
+              <CartoonCharacter gender="girl" name="Aisyah" tiltAngle={6} mood="celebrate" size={135} />
+            </div>
+
+            {/* Kad Statistik Markah & Jawapan Betul */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto my-6">
+              <div className="bg-[#FFF6CC] border-3 border-amber-300 rounded-2xl p-4 shadow-sm">
+                <p className="text-sm font-extrabold text-amber-800 uppercase">Markah Akhir</p>
+                <p className="font-display text-3xl sm:text-4xl font-bold text-amber-950 mt-1">
+                  {score} / {QUESTIONS.length * 10} ⭐
+                </p>
+              </div>
+
+              <div className="bg-[#D8F8E8] border-3 border-emerald-300 rounded-2xl p-4 shadow-sm">
+                <p className="text-sm font-extrabold text-emerald-800 uppercase">Jawapan Betul</p>
+                <p className="font-display text-3xl sm:text-4xl font-bold text-emerald-950 mt-1">
+                  {correctCount} / {QUESTIONS.length} Soalan ✅
+                </p>
+              </div>
+            </div>
+
+            {/* Mesej Motivasi */}
+            <div className="bg-[#E0F4FF] border-2 border-sky-300 rounded-2xl p-4 sm:p-5 max-w-2xl mx-auto mb-7">
+              <p className="font-display text-lg sm:text-2xl font-semibold text-sky-900">
+                “Hebat! Teruskan mengamalkan adab makan dan minum dalam kehidupan seharian!”
+              </p>
